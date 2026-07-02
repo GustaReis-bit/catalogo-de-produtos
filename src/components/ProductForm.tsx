@@ -92,7 +92,7 @@ export default function ProductForm({
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [, setSelectedFile] = useState<File | null>(null);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
