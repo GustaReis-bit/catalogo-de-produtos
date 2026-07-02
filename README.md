@@ -69,18 +69,25 @@ Abra `http://localhost:5173` no navegador.
 │  ├─ hooks/
 │  │  └─ useProducts.ts
 │  ├─ pages/
+│  │  ├─ EditProductPage.tsx
 │  │  ├─ HomePage.tsx
 │  │  ├─ NewProductPage.tsx
 │  │  ├─ ProductDetailPage.tsx
 │  │  └─ NotFoundPage.tsx
 │  ├─ types/
 │  │  └─ index.ts
+│  ├─ App.css
 │  ├─ App.tsx
 │  ├─ index.css
-│  ├─ main.tsx
-│  └─ tsconfig.json
+│  └─ main.tsx
+├─ eslint.config.js
+├─ index.html
 ├─ package.json
+├─ postcss.config.js
 ├─ tailwind.config.js
+├─ tsconfig.json
+├─ tsconfig.app.json
+├─ tsconfig.node.json
 ├─ vite.config.ts
 └─ README.md
 ```

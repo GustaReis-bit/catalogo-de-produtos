@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createProduct } from '../api/products';
+import { createProduct, updateProduct } from '../api/products';
 import { CATEGORIES } from '../types';
 import type { ProductFormData } from '../types';
 
@@ -35,12 +35,21 @@ function validate(data: ProductFormData): FormErrors {
   if (!data.category) errs.category = 'Selecione uma categoria';
   if (data.price <= 0) errs.price = 'Preço deve ser maior que zero';
   if (data.stock < 0) errs.stock = 'Estoque não pode ser negativo';
-  if (data.image && !/^https?:\/\/.+\..+/.test(data.image)) {
-    errs.image = 'Deve ser uma URL válida (https://…)';
+  if (
+    data.image &&
+    !data.image.startsWith('blob:') &&
+    !/^https?:\/\/.+\..+/.test(data.image)
+  ) {
+    errs.image = 'Deve ser uma URL válida';
   }
   return errs;
 }
 
+interface ProductFormProps {
+  initialData?: ProductFormData;
+  productId?: string;
+  isEditing?: boolean;
+}
 interface FieldProps {
   label: string;
   error?: string;
@@ -65,18 +74,25 @@ function Field({ label, error, required, children, hint }: FieldProps) {
 
 const inputCls = (error?: string) =>
   `w-full px-3 py-2.5 bg-white border rounded-sm text-ink-900 text-sm placeholder-ink-300
-   focus:outline-none focus:ring-1 transition-colors ${
-     error
-       ? 'border-red-300 focus:border-red-400 focus:ring-red-200'
-       : 'border-ink-200 focus:border-ink-500 focus:ring-ink-200'
-   }`;
+   focus:outline-none focus:ring-1 transition-colors ${error
+    ? 'border-red-300 focus:border-red-400 focus:ring-red-200'
+    : 'border-ink-200 focus:border-ink-500 focus:ring-ink-200'
+  }`;
 
-export default function ProductForm() {
+export default function ProductForm({
+  initialData = INITIAL,
+  productId,
+  isEditing = false,
+}: ProductFormProps) {
   const navigate = useNavigate();
-  const [form, setForm] = useState<ProductFormData>(INITIAL);
+  const [form, setForm] = useState<ProductFormData>(
+    initialData || INITIAL
+  );
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -89,20 +105,59 @@ export default function ProductForm() {
     }
   };
 
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    setSelectedFile(file);
+
+    const preview = URL.createObjectURL(file);
+
+    setPreviewImage(preview);
+
+    setForm((prev) => ({
+      ...prev,
+      image: preview,
+    }));
+
+    if (errors.image) {
+      setErrors((prev) => ({
+        ...prev,
+        image: undefined,
+      }));
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
     const errs = validate(form);
+
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
     }
+
     setSubmitting(true);
     setApiError(null);
+
     try {
-      const created = await createProduct(form);
-      navigate(`/product/${created.id}`, { state: { created: true } });
+      let saved;
+
+      if (isEditing && productId) {
+        saved = await updateProduct(productId, form);
+      } else {
+        saved = await createProduct(form);
+      }
+
+      navigate(`/product/${saved.id}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro ao criar produto';
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Erro ao salvar produto';
+
       setApiError(message);
       setSubmitting(false);
     }
@@ -190,28 +245,43 @@ export default function ProductForm() {
 
       {/* URL da imagem */}
       <Field
-        label="URL da imagem"
+        label="Imagem do Produto"
         error={errors.image}
-        hint="Opcional. Deixe em branco para usar uma imagem padrão."
+        hint="Você pode informar uma URL ou selecionar uma imagem do computador."
       >
-        <input
-          type="url"
-          name="image"
-          value={form.image}
-          onChange={handleChange}
-          placeholder="https://exemplo.com/imagem.jpg"
-          className={inputCls(errors.image)}
-        />
+        <div className="space-y-3">
+          <input
+            type="url"
+            name="image"
+            value={form.image.startsWith('blob:') ? '' : form.image}
+            onChange={handleChange}
+            placeholder="https://exemplo.com/imagem.jpg"
+            className={inputCls(errors.image)}
+          />
+
+          <div className="text-center text-xs text-ink-400">
+            ou
+          </div>
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className={inputCls()}
+          />
+        </div>
       </Field>
 
       {/* Preview da imagem */}
-      {form.image && !errors.image && (
-        <div className="rounded-sm overflow-hidden border border-ink-100 h-40 animate-fade-in">
+      {(previewImage || (form.image && !errors.image)) && (
+        <div className="rounded-sm overflow-hidden border border-ink-100 h-56 animate-fade-in">
           <img
-            src={form.image}
+            src={previewImage || form.image}
             alt="Pré-visualização"
             className="w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
           />
         </div>
       )}
@@ -232,7 +302,13 @@ export default function ProductForm() {
           className="flex-1 px-6 py-3 bg-ink-950 text-cream text-sm font-medium rounded-sm
                      hover:bg-ink-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {submitting ? 'Criando…' : 'Criar Produto'}
+          {submitting
+            ? isEditing
+              ? 'Salvando...'
+              : 'Criando...'
+            : isEditing
+              ? 'Salvar Alterações'
+              : 'Criar Produto'}
         </button>
       </div>
     </form>
